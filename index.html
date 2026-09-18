@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>스마트 인원보고 & 점호/주말점검 시스템</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome CDN for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Noto Sans KR Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Kakao JS SDK (Optional demo initialization inside JS) -->
+    <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.0/kakao.min.js" integrity="sha384-l8/L16S78p7H7a80S81m/f3Y0G1n6bW0S6Lz9wR01c10r+V14N+g9+" crossorigin="anonymous"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        kakao: {
+                            bg: '#FEE500',
+                            text: '#000000',
+                            hover: '#FADA00',
+                            dark: '#3C1E1E'
+                        },
+                        navy: {
+                            50: '#f0f4f8',
+                            100: '#d9e2ec',
+                            700: '#102a43',
+                            800: '#0b69a3',
+                            900: '#061b2e'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Noto Sans KR', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #0f172a;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(100, 116, 139, 0.3);
+            border-radius: 4px;
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.25s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+        }
+
+        .active-ring {
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+        }
+    </style>
+    <script src="https://developers.kakao.com/sdk/js/kakao.js"></script>
+</head>
+<body class="min-h-screen text-slate-800 flex justify-center items-center p-0 sm:p-4">
+
+    <!-- Mobile Screen Frame Container -->
+    <div id="appContainer" class="w-full max-w-md bg-slate-100 min-h-screen sm:min-h-[844px] sm:max-h-[92vh] sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col relative border-0 sm:border-4 border-slate-800">
+
+        <!-- Header Bar -->
+        <header id="appHeader" class="bg-slate-900 text-white px-4 py-3.5 flex justify-between items-center sticky top-0 z-30 shadow-md">
+            <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-white text-lg shadow-sm">
+                    <i class="fa-solid font-bold fa-clipboard-user text-sm"></i>
+                </div>
+                <div>
+                    <h1 class="text-base font-bold leading-tight flex items-center gap-1.5">
+                        스마트 인원보고
+                        <span id="headerBadge" class="text-[10px] bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 px-1.5 py-0.5 rounded-full font-normal hidden">
+                            라이브
+                        </span>
+                    </h1>
+                    <p class="text-[11px] text-slate-400 font-normal" id="headerSubtext">점호 · 조별 · 주말점검</p>
+                </div>
+            </div>
+
+            <!-- Profile / Logout Action -->
+            <div id="headerProfile" class="hidden flex items-center gap-2">
+                <div class="flex items-center gap-2 bg-slate-800/80 px-2.5 py-1 rounded-full border border-slate-700/60">
+                    <img id="userAvatar" src="" alt="Profile" class="w-5 h-5 rounded-full border border-yellow-400">
+                    <span id="userName" class="text-xs font-medium text-slate-200 max-w-[70px] truncate">사용자</span>
+                </div>
+                <button onclick="logout()" title="로그아웃" class="w-7 h-7 rounded-full bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 flex items-center justify-center transition">
+                    <i class="fa-solid fa-right-from-bracket text-xs"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Dynamic Main Content Wrapper -->
+        <main class="flex-1 overflow-y-auto p-4 space-y-4 pb-20">
+
+            <!-- 1. KAKAO LOGIN VIEW -->
+            <section id="loginView" class="py-8 flex flex-col justify-between min-h-[600px] animate-fade-in">
+                <div class="text-center space-y-4 pt-6">
+                    <div class="w-20 h-20 bg-indigo-600/10 border-2 border-indigo-500/30 rounded-3xl mx-auto flex items-center justify-center text-indigo-600 text-3xl shadow-inner">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </div>
+                    <div class="space-y-1">
+                        <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">부대 인원보고 스마트앱</h2>
+                        <p class="text-xs text-slate-500 leading-relaxed px-6">
+                            카카오 계정으로 간편하게 로그인하여<br>
+                            일일 점호, 조별과업, 주말점검을 신속히 보고하세요.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Kakao Auth Buttons & Demo options -->
+                <div class="space-y-3 px-2">
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 space-y-3">
+                        <p class="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+                            <i class="fa-solid fa-lock text-indigo-500"></i> 인증 방식 선택
+                        </p>
+                        
+                        <!-- Main Kakao Button -->
+                        <button onclick="handleKakaoLogin('real')" class="w-full bg-kakao-bg hover:bg-kakao-hover text-kakao-text font-bold py-3.5 px-4 rounded-xl shadow-sm flex items-center justify-center gap-2.5 transition active:scale-[0.98]">
+                            <i class="fa-solid fa-comment text-lg text-slate-900"></i>
+                            <span class="text-sm font-semibold">카카오계정으로 시작하기</span>
+                        </button>
+
+                        <!-- Quick Demo Mode Login Button -->
+                        <button onclick="handleKakaoLogin('demo')" class="w-full bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition active:scale-[0.98]">
+                            <i class="fa-solid fa-circle-play text-yellow-400"></i>
+                            <span>데모 사용자로 즉시 로그인 (체험용)</span>
+                        </button>
+                    </div>
+
+                    <!-- App Info Footer -->
+                    <div class="text-center space-y-1">
+                        <p class="text-[11px] text-slate-400">
+                            <i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i>
+                            데이터는 브라우저 내 안전하게 보관됩니다.
+                        </p>
+                        <p class="text-[10px] text-slate-400">v2.4 Mobile Optimized Edition</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. MAIN DASHBOARD VIEW (Hidden by default) -->
+            <section id="mainView" class="hidden space-y-4 animate-fade-in">
+
+                <!-- Room & Weekend Check Toggle Bar -->
+                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 space-y-3">
+                    <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-house-chimney text-indigo-600 text-sm"></i>
+                            <span class="text-xs font-bold text-slate-700">기본 점검 설정</span>
+                        </div>
+                        <span id="currentDateText" class="text-[11px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">2026.09.18 (금)</span>
+                    </div>
+
+                    <div class="grid grid-cols-12 gap-3">
+                        <!-- Living Room ID Input -->
+                        <div class="col-span-6 space-y-1">
+                            <label class="text-[11px] font-semibold text-slate-500 block">생활반 / 호실</label>
+                            <div class="relative">
+                                <input type="text" id="roomInput" placeholder="예: 1생활반, 201호" 
+                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
+                                    oninput="saveConfig()">
+                            </div>
+                        </div>
+
+                        <!-- Weekend Check Toggle -->
+                        <div class="col-span-6 space-y-1 flex flex-col justify-between">
+                            <label class="text-[11px] font-semibold text-slate-500 block">주말점검 여부</label>
+                            <label class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 cursor-pointer hover:bg-slate-100/80 transition select-none h-[34px]">
+                                <span class="text-xs font-bold text-slate-700" id="weekendToggleLabel">미실시</span>
+                                <div class="relative">
+                                    <input type="checkbox" id="weekendToggle" class="sr-only" onchange="toggleWeekendCheck()">
+                                    <div id="toggleBg" class="w-9 h-5 bg-slate-300 rounded-full transition-colors duration-200"></div>
+                                    <div id="toggleDot" class="w-3.5 h-3.5 bg-white rounded-full absolute left-0.75 top-0.75 transition-transform duration-200 transform translate-x-0.5 shadow-sm"></div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add New Personnel Card -->
+                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-user-plus text-indigo-600 text-sm"></i>
+                            <h3 class="text-xs font-bold text-slate-700">인원 등록</h3>
+                        </div>
+                        <button onclick="loadSampleData()" class="text-[11px] font-medium text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100/70 px-2 py-1 rounded-lg transition">
+                            <i class="fa-solid fa-wand-magic-sparkles mr-1"></i>샘플 채우기
+                        </button>
+                    </div>
+
+                    <form id="addMemberForm" onsubmit="handleAddMember(event)" class="space-y-2.5">
+                        <div class="grid grid-cols-12 gap-2">
+                            <!-- Unit / Belonging -->
+                            <div class="col-span-4">
+                                <input type="text" id="addUnit" placeholder="소속 (예:1소대)" required
+                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-medium focus:outline-none focus:border-indigo-500 focus:bg-white transition">
+                            </div>
+
+                            <!-- Rank Dropdown -->
+                            <div class="col-span-4">
+                                <select id="addRank" required
+                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs font-medium focus:outline-none focus:border-indigo-500 focus:bg-white transition">
+                                    <option value="" disabled selected>계급</option>
+                                    <option value="이병">이병</option>
+                                    <option value="일병">일병</option>
+                                    <option value="상병">상병</option>
+                                    <option value="병장">병장</option>
+                                    <option value="하사">하사</option>
+                                    <option value="중사">중사</option>
+                                    <option value="상사">상사</option>
+                                    <option value="원사">원사</option>
+                                    <option value="소위">소위</option>
+                                    <option value="중위">중위</option>
+                                    <option value="대위">대위</option>
+                                    <option value="군무원">군무원</option>
+                                    <option value="기타">기타</option>
+                                </select>
+                            </div>
+
+                            <!-- Name -->
+                            <div class="col-span-4">
+                                <input type="text" id="addName" placeholder="성명" required
+                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-medium focus:outline-none focus:border-indigo-500 focus:bg-white transition">
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition active:scale-[0.99]">
+                            <i class="fa-solid fa-plus text-xs"></i>
+                            <span>인원 추가하기</span>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Summary Dashboard Grid -->
+                <div class="grid grid-cols-3 gap-2">
+                    <div class="bg-white rounded-2xl p-3 shadow-sm border border-slate-200/80 text-center">
+                        <span class="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">총원</span>
+                        <span id="statTotal" class="text-xl font-extrabold text-slate-800">0</span>
+                        <span class="text-[10px] text-slate-400">명</span>
+                    </div>
+
+                    <div class="bg-white rounded-2xl p-3 shadow-sm border border-slate-200/80 text-center">
+                        <span class="text-[10px] font-bold text-emerald-600 block uppercase tracking-wider">현재원</span>
+                        <span id="statPresent" class="text-xl font-extrabold text-emerald-600">0</span>
+                        <span class="text-[10px] text-emerald-600">명</span>
+                    </div>
+
+                    <div class="bg-white rounded-2xl p-3 shadow-sm border border-slate-200/80 text-center">
+                        <span class="text-[10px] font-bold text-rose-500 block uppercase tracking-wider">열외/사고자</span>
+                        <span id="statAbsent" class="text-xl font-extrabold text-rose-500">0</span>
+                        <span class="text-[10px] text-rose-500">명</span>
+                    </div>
+                </div>
+
+                <!-- Personnel List Container -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between px-1">
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                <i class="fa-solid fa-users text-indigo-600"></i>
+                                생활반 인원 리스트 (<span id="memberCountBadge" class="text-indigo-600">0</span>)
+                            </h3>
+                        </div>
+                        <button onclick="removeAllMembers()" class="text-[11px] text-slate-400 hover:text-rose-500 transition">
+                            <i class="fa-solid fa-trash-can mr-1"></i>전체 삭제
+                        </button>
+                    </div>
+
+                    <!-- Member Cards Holder -->
+                    <div id="memberList" class="space-y-2.5">
+                        <!-- Dynamic Cards Inserted Here -->
+                    </div>
+
+                    <!-- Empty State View -->
+                    <div id="emptyState" class="bg-white rounded-2xl p-8 text-center border border-dashed border-slate-300 space-y-2">
+                        <i class="fa-solid fa-user-slash text-slate-300 text-3xl"></i>
+                        <p class="text-xs font-medium text-slate-500">등록된 인원이 없습니다.</p>
+                        <p class="text-[11px] text-slate-400">상단 폼에서 소속, 계급, 성명을 입력하거나<br>'샘플 채우기'를 눌러 시작하세요.</p>
+                    </div>
+                </div>
+
+                <!-- KakaoTalk Report Output Section -->
+                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-paper-plane text-yellow-500"></i>
+                            <h3 class="text-xs font-bold text-slate-700">최종 인원보고</h3>
+                        </div>
+                        <!-- <span class="text-[10px] bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full font-bold">자동 생성</span> -->
+                    </div>
+
+                    <div class="relative" style="display: none;">
+                        <textarea id="reportPreview" readonly rows="8"
+                            class="w-full bg-slate-900 text-slate-100 font-mono text-[11px] p-3 rounded-xl border border-slate-800 leading-relaxed resize-none focus:outline-none"></textarea>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-2">
+                        <button onclick="copyKakaoReport()" class="w-full bg-kakao-bg hover:bg-kakao-hover text-kakao-text font-extrabold py-3 px-4 rounded-xl shadow-sm text-xs flex items-center justify-center gap-2 transition active:scale-[0.98]">
+                            <i class="fa-solid fa-copy text-sm"></i>
+                            <span>최종 인원보고</span>
+                        </button>
+                    </div>
+                </div>
+
+            </section>
+        </main>
+
+        <!-- Toast Notification UI -->
+        <div id="toast" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-slate-900/90 text-white text-xs px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2 border border-slate-700 opacity-0 pointer-events-none transition-all duration-300 z-50">
+            <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400"></i>
+            <span id="toastMessage">안내 메시지</span>
+        </div>
+
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        
+        Kakao.init("273d497588acc3f6bd3f5bfaae09376c")
+        console.log(Kakao.isInitialized());
+        // if(localStorage.getItem("uid") != null){
+        //     document.getElementById("requireLogin").style.display = "none";
+        //     document.getElementById("afterLogin").style.display = "block";
+        // }
+    
+        // Status option list
+        const STATUS_OPTIONS = ['정상', '휴가', '국기수', '당직', '작업', '환자', '출동 수리', '출장 파견', '기타'];
+
+        // App State Object
+        let state = {
+            user: {
+                isLoggedIn: false,
+                name: '',
+                profileImg: '',
+                loginType: ''
+            },
+            roomName: '1생활반',
+            isWeekendCheck: false,
+            members: []
+        };
+
+        // Load State on Boot
+        function loadSavedState() {
+            try {
+                const savedUser = localStorage.getItem('kakao_app_user');
+                if (savedUser) state.user = JSON.parse(savedUser);
+
+                const savedRoom = localStorage.getItem('kakao_app_room');
+                if (savedRoom !== null) state.roomName = savedRoom;
+
+                const savedWeekend = localStorage.getItem('kakao_app_weekend');
+                if (savedWeekend !== null) state.isWeekendCheck = JSON.parse(savedWeekend);
+
+                const savedMembers = localStorage.getItem('kakao_app_members');
+                if (savedMembers) state.members = JSON.parse(savedMembers);
+            } catch (e) {
+                console.error("Failed to load state from localStorage:", e);
+            }
+        }
+
+        function saveState() {
+            try {
+                localStorage.setItem('kakao_app_user', JSON.stringify(state.user));
+                localStorage.setItem('kakao_app_room', state.roomName);
+                localStorage.setItem('kakao_app_weekend', JSON.stringify(state.isWeekendCheck));
+                localStorage.setItem('kakao_app_members', JSON.stringify(state.members));
+            } catch (e) {
+                console.error("Failed to save state:", e);
+            }
+        }
+
+        // Kakao Login Handler
+        function handleKakaoLogin(type) {
+            if (type === 'demo') {
+                state.user = {
+                    isLoggedIn: true,
+                    name: '김당직 (데모)',
+                    profileImg: 'https://placehold.co/100x100/FEE500/000000?text=Kakao',
+                    loginType: 'demo'
+                };
+                showToast('데모 계정으로 성공적으로 로그인하였습니다.');
+                renderView();
+            } else {
+                // Real Kakao Login Simulation / SDK integration structure
+                if (window.Kakao && window.Kakao.isInitialized && window.Kakao.isInitialized()) {
+                    // Actual Kakao Login API Call
+                    Kakao.Auth.login({
+                        success: function(authObj) {
+                            Kakao.API.request({
+                                url: '/v2/user/me',
+                                success: function(res) {
+                                    const nickname = res.kakao_account.profile.nickname || '카카오 사용자';
+                                    const profileImg = res.kakao_account.profile.profile_image_url || 'https://placehold.co/100x100/FEE500/000000?text=Kakao';
+                                    state.user = {
+                                        isLoggedIn: true,
+                                        name: nickname,
+                                        profileImg: profileImg,
+                                        loginType: 'kakao'
+                                    };
+                                    showToast(`${nickname}님 환영합니다!`);
+                                    renderView();
+                                }
+                            });
+                        },
+                        fail: function(err) {
+                            showToast('카카오 로그인에 실패했습니다. 데모 모드를 이용하세요.');
+                        }
+                    });
+                } else {
+                    // Kakao SDK Simulation Fallback if API Key isn't populated
+                    state.user = {
+                        isLoggedIn: true,
+                        name: '홍길동 (카카오)',
+                        profileImg: 'https://placehold.co/100x100/FEE500/000000?text=카카오',
+                        loginType: 'kakao_simulated'
+                    };
+                    showToast('카카오 계정으로 로그인 되었습니다.');
+                    renderView();
+                }
+            }
+        }
+
+        function logout() {
+            state.user = { isLoggedIn: false, name: '', profileImg: '', loginType: '' };
+            saveState();
+            showToast('로그아웃 되었습니다.');
+            renderView();
+        }
+
+        function toggleWeekendCheck() {
+            const toggle = document.getElementById('weekendToggle');
+            state.isWeekendCheck = toggle.checked;
+            updateWeekendToggleUI();
+            saveState();
+            renderMemberList();
+            generateReport();
+        }
+
+        function updateWeekendToggleUI() {
+            const label = document.getElementById('weekendToggleLabel');
+            const bg = document.getElementById('toggleBg');
+            const dot = document.getElementById('toggleDot');
+            const toggle = document.getElementById('weekendToggle');
+
+            toggle.checked = state.isWeekendCheck;
+
+            if (state.isWeekendCheck) {
+                label.textContent = '실시 (ON)';
+                label.className = 'text-xs font-bold text-indigo-600';
+                bg.className = 'w-9 h-5 bg-indigo-600 rounded-full transition-colors duration-200';
+                dot.className = 'w-3.5 h-3.5 bg-white rounded-full absolute left-0.75 top-0.75 transition-transform duration-200 transform translate-x-4 shadow-sm';
+            } else {
+                label.textContent = '미실시';
+                label.className = 'text-xs font-bold text-slate-700';
+                bg.className = 'w-9 h-5 bg-slate-300 rounded-full transition-colors duration-200';
+                dot.className = 'w-3.5 h-3.5 bg-white rounded-full absolute left-0.75 top-0.75 transition-transform duration-200 transform translate-x-0.5 shadow-sm';
+            }
+        }
+
+        function saveConfig() {
+            const roomVal = document.getElementById('roomInput').value.trim();
+            state.roomName = roomVal || '생활반';
+            saveState();
+            generateReport();
+        }
+
+        function handleAddMember(e) {
+            e.preventDefault();
+            const unit = document.getElementById('addUnit').value.trim();
+            const rank = document.getElementById('addRank').value;
+            const name = document.getElementById('addName').value.trim();
+
+            if (!unit || !rank || !name) {
+                showToast('모든 항목을 입력해주세요.');
+                return;
+            }
+
+            const newMember = {
+                id: 'm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                unit: unit,
+                rank: rank,
+                name: name,
+                rollCall: '정상',
+                group: '정상',
+                weekend: '정상'
+            };
+
+            state.members.push(newMember);
+            saveState();
+            
+            // Clear name input
+            document.getElementById('addName').value = '';
+            
+            showToast(`${rank} ${name} 등록 완료`);
+            renderMemberList();
+            generateReport();
+        }
+
+        function removeMember(id) {
+            state.members = state.members.filter(m => m.id !== id);
+            saveState();
+            renderMemberList();
+            generateReport();
+            showToast('인원이 삭제되었습니다.');
+        }
+
+        function removeAllMembers() {
+            if (state.members.length === 0) return;
+            state.members = [];
+            saveState();
+            renderMemberList();
+            generateReport();
+            showToast('전체 인원이 삭제되었습니다.');
+        }
+
+        function updateMemberStatus(id, field, value) {
+            const member = state.members.find(m => m.id === id);
+            if (member) {
+                member[field] = value;
+                saveState();
+                generateReport();
+                updateDashboardStats();
+            }
+        }
+
+        function loadSampleData() {
+            const samples = [
+                { id: 'm_1', unit: '1소대', rank: '병장', name: '김병장', rollCall: '정상', group: '정상', weekend: '정상' },
+                { id: 'm_2', unit: '1소대', rank: '상병', name: '이상병', rollCall: '휴가', group: '정상', weekend: '휴가' },
+                { id: 'm_3', unit: '1소대', rank: '일병', name: '박일병', rollCall: '정상', group: '작업', weekend: '정상' },
+                { id: 'm_4', unit: '본부', rank: '이병', name: '최이병', rollCall: '당직', group: '정상', weekend: '당직' }
+            ];
+            state.members = samples;
+            if (!state.roomName) state.roomName = '101호';
+            document.getElementById('roomInput').value = state.roomName;
+            saveState();
+            renderMemberList();
+            generateReport();
+            showToast('샘플 인원 4명이 등록되었습니다.');
+        }
+
+        function getBadgeClass(status) {
+            if (status === '정상') {
+                return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+            }
+            return 'bg-rose-50 text-rose-700 border-rose-200 font-bold';
+        }
+
+        function renderMemberList() {
+            const container = document.getElementById('memberList');
+            const emptyState = document.getElementById('emptyState');
+            const countBadge = document.getElementById('memberCountBadge');
+
+            countBadge.textContent = state.members.length;
+
+            if (state.members.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                updateDashboardStats();
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+
+            container.innerHTML = state.members.map(m => {
+                return `
+                <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/80 space-y-3 transition">
+                    <!-- Member Card Top Bar -->
+                    <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+                        <div class="flex items-center gap-2">
+                            <span class="text-[11px] bg-slate-100 text-slate-600 font-semibold px-2 py-0.5 rounded-md border border-slate-200">${m.unit}</span>
+                            <span class="text-xs font-bold text-indigo-900">${m.rank}</span>
+                            <span class="text-sm font-extrabold text-slate-800">${m.name}</span>
+                        </div>
+                        <button onclick="removeMember('${m.id}')" class="text-slate-300 hover:text-rose-500 p-1 transition">
+                            <i class="fa-solid fa-xmark text-xs"></i>
+                        </button>
+                    </div>
+
+                    <!-- Status Selectors Grid -->
+                    <div class="grid ${state.isWeekendCheck ? 'grid-cols-3' : 'grid-cols-2'} gap-2">
+                        <!-- Roll Call -->
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-semibold text-slate-400 block">점호 상태</label>
+                            <select onchange="updateMemberStatus('${m.id}', 'rollCall', this.value)" 
+                                class="w-full text-xs font-bold px-2 py-1.5 rounded-xl border transition ${getBadgeClass(m.rollCall)} focus:outline-none">
+                                ${STATUS_OPTIONS.map(opt => `<option value="${opt}" ${m.rollCall === opt ? 'selected' : ''}>${opt}</option>`).join('')}
+                            </select>
+                        </div>
+
+                        <!-- Group Work -->
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-semibold text-slate-400 block">조별 상태</label>
+                            <select onchange="updateMemberStatus('${m.id}', 'group', this.value)" 
+                                class="w-full text-xs font-bold px-2 py-1.5 rounded-xl border transition ${getBadgeClass(m.group)} focus:outline-none">
+                                ${STATUS_OPTIONS.map(opt => `<option value="${opt}" ${m.group === opt ? 'selected' : ''}>${opt}</option>`).join('')}
+                            </select>
+                        </div>
+
+                        <!-- Weekend Check (Conditional) -->
+                        ${state.isWeekendCheck ? `
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-semibold text-slate-400 block">주말점검</label>
+                            <select onchange="updateMemberStatus('${m.id}', 'weekend', this.value)" 
+                                class="w-full text-xs font-bold px-2 py-1.5 rounded-xl border transition ${getBadgeClass(m.weekend)} focus:outline-none">
+                                ${STATUS_OPTIONS.map(opt => `<option value="${opt}" ${m.weekend === opt ? 'selected' : ''}>${opt}</option>`).join('')}
+                            </select>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+                `;
+            }).join('');
+
+            updateDashboardStats();
+        }
+
+        function updateDashboardStats() {
+            const total = state.members.length;
+            
+            // Member is absent if ANY active status is NOT '정상'
+            const absentMembers = state.members.filter(m => {
+                if (m.rollCall !== '정상' || m.group !== '정상') return true;
+                if (state.isWeekendCheck && m.weekend !== '정상') return true;
+                return false;
+            });
+
+            const absentCount = absentMembers.length;
+            const presentCount = total - absentCount;
+
+            document.getElementById('statTotal').textContent = total;
+            document.getElementById('statPresent').textContent = presentCount;
+            document.getElementById('statAbsent').textContent = absentCount;
+        }
+
+        function generateReport() {
+            const now = new Date();
+            const days = ['일', '월', '화', '수', '목', '금', '토'];
+            const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} (${days[now.getDay()]})`;
+
+            const roomName = state.roomName || '생활반';
+            const total = state.members.length;
+
+            const rollCallAbsents = state.members.filter(m => m.rollCall !== '정상');
+            const groupAbsents = state.members.filter(m => m.group !== '정상');
+            const weekendAbsents = state.isWeekendCheck ? state.members.filter(m => m.weekend !== '정상') : [];
+
+            const totalAbsents = state.members.filter(m => {
+                if (m.rollCall !== '정상' || m.group !== '정상') return true;
+                if (state.isWeekendCheck && m.weekend !== '정상') return true;
+                return false;
+            });
+
+            const presentCount = total - totalAbsents;
+
+            let report = {
+                "roomName": roomName,
+                "dateStr": dateStr,
+                "total": total,
+                "totalAbsents": totalAbsents
+            }
+
+            // let report = `📋 [${roomName} 인원보고서]\n`;
+            // report += `📅 일시: ${dateStr}\n`;
+            // report += `-------------------\n`;
+            // report += `📊 [인원 현황 summary]\n`;
+            // report += `• 총원: ${total}명\n`;
+            // report += `• 사고/열외: ${totalAbsents}명\n`;
+            // report += `• 현재원: ${presentCount}명\n`;
+
+            // if (totalAbsents > 0) {
+            //     report += `-------------------\n`;
+            //     report += `⚠️ [항목별 열외자 명단]\n`;
+
+            //     if (rollCallAbsents.length > 0) {
+            //         report += `\n[점호 열외]\n`;
+            //         rollCallAbsents.forEach(m => {
+            //             report += `- ${m.unit} ${m.rank} ${m.name} (${m.rollCall})\n`;
+            //         });
+            //     }
+
+            //     if (groupAbsents.length > 0) {
+            //         report += `\n[조별 과업 열외]\n`;
+            //         groupAbsents.forEach(m => {
+            //             report += `- ${m.unit} ${m.rank} ${m.name} (${m.group})\n`;
+            //         });
+            //     }
+
+            //     if (state.isWeekendCheck && weekendAbsents.length > 0) {
+            //         report += `\n[주말점검 열외]\n`;
+            //         weekendAbsents.forEach(m => {
+            //             report += `- ${m.unit} ${m.rank} ${m.name} (${m.weekend})\n`;
+            //         });
+            //     }
+            // } else if (total > 0) {
+            //     report += `-------------------\n`;
+            //     report += `✅ 특이사항: 열외자 없음 (전원 정상)\n`;
+            // }
+
+            // if (total > 0) {
+            //     report += `-------------------\n`;
+            //     report += `📝 [생활반 전체 세부 명단]\n`;
+            //     state.members.forEach((m, idx) => {
+            //         report += `${idx + 1}. ${m.unit} ${m.rank} ${m.name}\n`;
+            //         let statusLine = `   └ 점호:${m.rollCall} | 조별:${m.group}`;
+            //         if (state.isWeekendCheck) {
+            //             statusLine += ` | 주말점검:${m.weekend}`;
+            //         }
+            //         report += `${statusLine}\n`;
+            //     });
+            // }
+
+            // report += `-------------------\n`;
+            // report += `보고자: ${state.user.name || '생활반장'}`;
+
+            document.getElementById('reportPreview').value = JSON.stringify(report);
+        }
+
+        function copyKakaoReport() {
+            var details = {
+                'uid': localStorage.getItem("uid") + "-" + localStorage.getItem("userName"),
+                'status': document.getElementById('reportPreview').value
+            };
+            var formBody = [];
+            for(var property in details){
+                var encodedKey = encodeURIComponent(property);
+                var encodedValue = encodeURIComponent(details[property]);
+                formBody.push(encodedKey + "=" + encodedValue);
+            }
+            formBody = formBody.join("&");
+            fetch("https://api.findflag.kr/insdc15", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                body: formBody
+            })
+            .then((response) => response.text())
+            .then((data) => {
+                alert("저장되었어요" + statusData)
+            });
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            const messageEl = document.getElementById('toastMessage');
+            messageEl.textContent = msg;
+
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            toast.classList.add('opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 2600);
+        }
+
+        function renderView() {
+            const loginView = document.getElementById('loginView');
+            const mainView = document.getElementById('mainView');
+            const headerProfile = document.getElementById('headerProfile');
+            const headerBadge = document.getElementById('headerBadge');
+
+            if (state.user.isLoggedIn) {
+                loginView.classList.add('hidden');
+                mainView.classList.remove('hidden');
+                headerProfile.classList.remove('hidden');
+                headerBadge.classList.remove('hidden');
+
+                document.getElementById('userName').textContent = state.user.name;
+                document.getElementById('userAvatar').src = state.user.profileImg;
+                document.getElementById('roomInput').value = state.roomName;
+
+                updateWeekendToggleUI();
+                renderMemberList();
+                generateReport();
+            } else {
+                loginView.classList.remove('hidden');
+                mainView.classList.add('hidden');
+                headerProfile.classList.add('hidden');
+                headerBadge.classList.add('hidden');
+            }
+        }
+
+        // Initialize App on Window Load
+        window.addEventListener('DOMContentLoaded', () => {
+            // Set current date
+            const now = new Date();
+            const days = ['일', '월', '화', '수', '목', '금', '토'];
+            const dateStr = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')} (${days[now.getDay()]})`;
+            document.getElementById('currentDateText').textContent = dateStr;
+
+            loadSavedState();
+            renderView();
+        });
+    </script>
+</body>
+</html>
