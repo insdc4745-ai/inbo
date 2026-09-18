@@ -414,9 +414,11 @@
                     // Actual Kakao Login API Call
                     Kakao.Auth.login({
                         success: function(authObj) {
+                            console.log(authObj)
                             Kakao.API.request({
                                 url: '/v2/user/me',
                                 success: function(res) {
+                                    console.log(res)
                                     const nickname = res.kakao_account.profile.nickname || '카카오 사용자';
                                     const profileImg = res.kakao_account.profile.profile_image_url || 'https://placehold.co/100x100/FEE500/000000?text=Kakao';
                                     state.user = {
@@ -427,10 +429,14 @@
                                     };
                                     showToast(`${nickname}님 환영합니다!`);
                                     renderView();
+                                },
+                                fail: function(err) {
+                                    console.log(err);
                                 }
                             });
                         },
                         fail: function(err) {
+                            console.log(err);
                             showToast('카카오 로그인에 실패했습니다. 데모 모드를 이용하세요.');
                         }
                     });
@@ -747,25 +753,18 @@
         function copyKakaoReport() {
             var details = {
                 'uid': localStorage.getItem("uid") + "-" + localStorage.getItem("userName"),
-                'status': document.getElementById('reportPreview').value
+                'status': JSON.parse(document.getElementById('reportPreview').value)
             };
-            var formBody = [];
-            for(var property in details){
-                var encodedKey = encodeURIComponent(property);
-                var encodedValue = encodeURIComponent(details[property]);
-                formBody.push(encodedKey + "=" + encodedValue);
-            }
-            formBody = formBody.join("&");
             fetch("https://api.findflag.kr/insdc15", {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Content-Type": "application/json",
                 },
-                body: formBody
+                body: JSON.stringify(details)
             })
             .then((response) => response.text())
             .then((data) => {
-                alert("저장되었어요" + statusData)
+                showToast("저장되었어요.")
             });
         }
 
