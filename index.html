@@ -148,10 +148,10 @@
                         </button>
 
                         <!-- Quick Demo Mode Login Button -->
-                        <button onclick="handleKakaoLogin('demo')" class="w-full bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition active:scale-[0.98]">
+                        <!-- <button onclick="handleKakaoLogin('demo')" class="w-full bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition active:scale-[0.98]">
                             <i class="fa-solid fa-circle-play text-yellow-400"></i>
                             <span>데모 사용자로 즉시 로그인 (체험용)</span>
-                        </button>
+                        </button> -->
                     </div>
 
                     <!-- App Info Footer -->
@@ -183,9 +183,9 @@
                         <div class="col-span-6 space-y-1">
                             <label class="text-[11px] font-semibold text-slate-500 block">생활반 / 호실</label>
                             <div class="relative">
-                                <input type="text" id="roomInput" placeholder="예: 1생활반, 201호" 
+                                <input type="text" id="roomInput" placeholder="예: 1생활반" 
                                     class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
-                                    oninput="saveConfig()">
+                                    onblur="saveConfig()">
                             </div>
                         </div>
 
@@ -202,6 +202,9 @@
                             </label>
                         </div>
                     </div>
+                    <button type="submit" onclick="loadPerson()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition active:scale-[0.99]">
+                        <span>인원 불러오기 →</span>
+                    </button>
                 </div>
 
                 <!-- Add New Personnel Card -->
@@ -211,16 +214,16 @@
                             <i class="fa-solid fa-user-plus text-indigo-600 text-sm"></i>
                             <h3 class="text-xs font-bold text-slate-700">인원 등록</h3>
                         </div>
-                        <button onclick="loadSampleData()" class="text-[11px] font-medium text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100/70 px-2 py-1 rounded-lg transition">
+                        <!-- <button onclick="loadSampleData()" class="text-[11px] font-medium text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100/70 px-2 py-1 rounded-lg transition">
                             <i class="fa-solid fa-wand-magic-sparkles mr-1"></i>샘플 채우기
-                        </button>
+                        </button> -->
                     </div>
 
                     <form id="addMemberForm" onsubmit="handleAddMember(event)" class="space-y-2.5">
                         <div class="grid grid-cols-12 gap-2">
                             <!-- Unit / Belonging -->
                             <div class="col-span-4">
-                                <input type="text" id="addUnit" placeholder="소속 (예:1소대)" required
+                                <input type="text" id="addUnit" placeholder="소속 (예: 정통대)" required
                                     class="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-medium focus:outline-none focus:border-indigo-500 focus:bg-white transition">
                             </div>
 
@@ -233,15 +236,6 @@
                                     <option value="일병">일병</option>
                                     <option value="상병">상병</option>
                                     <option value="병장">병장</option>
-                                    <option value="하사">하사</option>
-                                    <option value="중사">중사</option>
-                                    <option value="상사">상사</option>
-                                    <option value="원사">원사</option>
-                                    <option value="소위">소위</option>
-                                    <option value="중위">중위</option>
-                                    <option value="대위">대위</option>
-                                    <option value="군무원">군무원</option>
-                                    <option value="기타">기타</option>
                                 </select>
                             </div>
 
@@ -303,7 +297,7 @@
                     <div id="emptyState" class="bg-white rounded-2xl p-8 text-center border border-dashed border-slate-300 space-y-2">
                         <i class="fa-solid fa-user-slash text-slate-300 text-3xl"></i>
                         <p class="text-xs font-medium text-slate-500">등록된 인원이 없습니다.</p>
-                        <p class="text-[11px] text-slate-400">상단 폼에서 소속, 계급, 성명을 입력하거나<br>'샘플 채우기'를 눌러 시작하세요.</p>
+                        <p class="text-[11px] text-slate-400">상단 폼에서 소속, 계급, 성명을 입력하세요.</p>
                     </div>
                 </div>
 
@@ -492,6 +486,9 @@
         }
 
         function saveConfig() {
+            let testStr = document.getElementById('roomInput').value;
+            testStr = testStr.replace(/[^0-9]/g, '');
+            document.getElementById('roomInput').value = testStr + "생활반";
             const roomVal = document.getElementById('roomInput').value.trim();
             state.roomName = roomVal || '생활반';
             saveState();
@@ -688,10 +685,10 @@
             const presentCount = total - totalAbsents;
 
             let report = {
-                "roomName": roomName,
+                "reporter": state.user.name + "-" + localStorage.getItem("uid"),
                 "dateStr": dateStr,
                 "total": total,
-                "totalAbsents": totalAbsents
+                "totalPerson": state.members
             }
 
             // let report = `📋 [${roomName} 인원보고서]\n`;
@@ -747,13 +744,43 @@
             // report += `-------------------\n`;
             // report += `보고자: ${state.user.name || '생활반장'}`;
 
-            document.getElementById('reportPreview').value = JSON.stringify(report);
+            document.getElementById('reportPreview').value = roomName + "$$" + JSON.stringify(report);
+        }
+
+        function loadPerson(){
+            fetch("https://api.findflag.kr/insdc15/" + state.roomName, {
+                method: "GET"
+            })
+            .then((response) => response.json())
+            .then((data) => {
+                state.members = [];
+                try{
+                    data[state.roomName]["status"]["totalPerson"].forEach(function(item, index) {
+                        const newMember = {
+                            id: item["id"],
+                            unit: item["unit"],
+                            rank: item["rank"],
+                            name: item["name"],
+                            rollCall: '정상',
+                            group: '정상',
+                            weekend: '정상'
+                        };
+                        state.members.push(newMember);
+                        saveState();
+                        renderMemberList();
+                        generateReport();
+                    });
+                    showToast("정보를 불러왔어요.")
+                } catch(e){
+                    showToast("저장된 정보가 없어요.")
+                }
+            });
         }
 
         function copyKakaoReport() {
             var details = {
-                'uid': localStorage.getItem("uid") + "-" + localStorage.getItem("userName"),
-                'status': document.getElementById('reportPreview').value
+                'uid': document.getElementById('reportPreview').value.split("$$")[0],
+                'status': document.getElementById('reportPreview').value.split("$$")[1]
             };
             fetch("https://api.findflag.kr/insdc15", {
                 method: "POST",
